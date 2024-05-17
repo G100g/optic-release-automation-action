@@ -1,16 +1,8 @@
-'use strict'
-
-const openPr = require('./openPr')
-const release = require('./release')
-const { AUTO_INPUT } = require('./const')
-const { execWithOutput } = require('./utils/execWithOutput')
-const { logError, logInfo } = require('./log')
-const util = require('util')
-const conventionalCommitsConfig = require('conventional-changelog-monorepo/conventional-changelog-conventionalcommits')
-const conventionalRecommendedBump = require('conventional-changelog-monorepo/conventional-recommended-bump')
-const conventionalRecommendedBumpAsync = util.promisify(
-  conventionalRecommendedBump
-)
+import openPr from './openPr.js'
+import release from './release.js'
+import { AUTO_INPUT } from './const.js'
+import { execWithOutput } from './utils/execWithOutput.js'
+import { logError, logInfo } from './log.js'
 
 async function runAction({ github, context, inputs, packageVersion }) {
   if (context.eventName === 'workflow_dispatch') {
@@ -51,15 +43,28 @@ async function getAutoBumpedVersion(baseTag) {
 
   logInfo(`Using ${tag} as base release tag for version bump`)
 
-  const { releaseType = 'patch' } = await conventionalRecommendedBumpAsync({
-    baseTag: tag,
-    config: conventionalCommitsConfig,
-  })
-  logInfo(`Auto generated release type is ${JSON.stringify(releaseType)}`)
-  return releaseType
+  // const conventionalCommitsConfig = await import(
+  //   'conventional-changelog-conventionalcommits'
+  // )
+  const { Bumper } = await import('conventional-recommended-bump')
+
+  const bumper = new Bumper(process.cwd())
+  bumper.loadPreset('conventionalcommits')
+  bumper.tag(tag)
+  const defaultReleaseType = 'patch'
+  try {
+    const { releaseType } = await bumper.bump()
+
+    logInfo(`Auto generated release type is ${JSON.stringify(releaseType)}`)
+    return releaseType || defaultReleaseType
+  } catch (err) {
+    console.log(err)
+    logError(`Error bump recommend version`)
+    return defaultReleaseType
+  }
 }
 
-module.exports = {
+export default {
   runAction,
   bumpVersion,
 }
